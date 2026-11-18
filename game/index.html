@@ -3,17 +3,210 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Block Dodger</title>
+<title>Palmera Bay — 3D open-world crime</title>
 <style>
-  html, body { margin: 0; height: 100%; overflow: hidden; background: #11141b; }
-  #game { position: fixed; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
-  /* Read aloud, never shown: the status line screen readers announce. */
-  #status { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #0b1c2c;
+    font-family: "Segoe UI", system-ui, -apple-system, Arial, sans-serif; color: #f2f7fa; }
+  #c { position: fixed; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
+  .hidden { display: none !important; }
+  /* ---------- HUD ---------- */
+  #hud { position: fixed; inset: 0; pointer-events: none; z-index: 5; }
+  #topbar { position: absolute; top: 10px; left: 12px; right: 12px; display: flex;
+    justify-content: space-between; align-items: flex-start; }
+  #stats { background: rgba(8, 24, 38, .72); border: 1px solid rgba(255,255,255,.18);
+    border-radius: 10px; padding: 8px 12px; font-size: 15px; line-height: 1.5; min-width: 240px; }
+  #stats b { color: #7dffb0; }
+  #stars { font-size: 26px; letter-spacing: 3px; color: #ffd23e; text-shadow: 0 0 8px rgba(0,0,0,.7); }
+  #stars .off { color: rgba(255,255,255,.28); }
+  #clock { text-align: right; font-size: 15px; background: rgba(8,24,38,.72);
+    border: 1px solid rgba(255,255,255,.18); border-radius: 10px; padding: 8px 12px; }
+  #objective { position: absolute; top: 96px; left: 12px; max-width: 420px;
+    background: rgba(8,24,38,.78); border-left: 5px solid #ffc93e; border-radius: 8px;
+    padding: 10px 14px; font-size: 15px; line-height: 1.45; }
+  #objective .mname { color: #ffc93e; font-weight: 700; }
+  #radio { position: absolute; top: 96px; right: 12px; text-align: right;
+    background: rgba(8,24,38,.72); border: 1px solid rgba(255,255,255,.18);
+    border-radius: 8px; padding: 8px 12px; font-size: 14px; }
+  #radio .st { color: #ff8ad8; font-weight: 700; }
+  #speedo { position: absolute; right: 14px; bottom: 14px; text-align: right;
+    background: rgba(8,24,38,.72); border: 1px solid rgba(255,255,255,.18);
+    border-radius: 10px; padding: 8px 14px; }
+  #speedo .sp { font-size: 34px; font-weight: 800; color: #fff; }
+  #speedo .unit { font-size: 12px; color: #9fd8ff; }
+  #weapon { position: absolute; left: 14px; bottom: 14px; background: rgba(8,24,38,.72);
+    border: 1px solid rgba(255,255,255,.18); border-radius: 10px; padding: 8px 14px; font-size: 15px; }
+  #weapon b { color: #ffd23e; }
+  #minimap { position: absolute; right: 14px; top: 170px; border: 2px solid rgba(255,255,255,.35);
+    border-radius: 50%; background: rgba(10,30,45,.85); box-shadow: 0 0 14px rgba(0,0,0,.5); }
+  #minimap.big { width: 340px !important; height: 340px !important; border-radius: 12px; }
+  #hint { position: absolute; left: 50%; bottom: 16px; transform: translateX(-50%);
+    background: rgba(8,24,38,.8); border-radius: 8px; padding: 7px 14px; font-size: 14px; white-space: nowrap; }
+  #toast { position: absolute; left: 50%; top: 34%; transform: translateX(-50%);
+    font-size: 26px; font-weight: 800; color: #fff; text-shadow: 0 2px 10px #000; text-align: center; }
+  #toast small { display: block; font-size: 16px; font-weight: 400; color: #ffe9a8; }
+  #crosshair { position: absolute; left: 50%; top: 50%; width: 22px; height: 22px;
+    transform: translate(-50%,-50%); pointer-events: none; }
+  #crosshair::before, #crosshair::after { content: ""; position: absolute; background: #fff;
+    box-shadow: 0 0 4px #000; }
+  #crosshair::before { left: 10px; top: 0; width: 2px; height: 22px; }
+  #crosshair::after { left: 0; top: 10px; width: 22px; height: 2px; }
+  #wantedFlash { position: fixed; inset: 0; pointer-events: none; z-index: 4;
+    background: radial-gradient(ellipse at center, transparent 55%, rgba(255,0,40,.28) 100%); }
+  /* ---------- overlays ---------- */
+  .overlay { position: fixed; inset: 0; z-index: 20; display: flex; align-items: center;
+    justify-content: center; background: linear-gradient(160deg, rgba(6,26,44,.94), rgba(20,8,40,.92)); }
+  .panel { width: min(1060px, 96vw); max-height: 94vh; overflow-y: auto; padding: 22px 28px;
+    background: rgba(10, 30, 48, .96); border: 1px solid rgba(255,255,255,.2); border-radius: 16px; }
+  .panel h1 { margin: 0 0 2px; font-size: 44px; letter-spacing: 1px; color: #ffd23e;
+    text-shadow: 0 3px 0 #b3541e, 0 6px 18px rgba(0,0,0,.6); }
+  .panel h1 span { color: #7dffb0; }
+  .subtitle { color: #9fd8ff; font-size: 16px; margin: 0 0 14px; }
+  .chips { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 12px 0; }
+  .chip { background: rgba(255,255,255,.07); border: 1px solid rgba(255,255,255,.16);
+    border-radius: 10px; padding: 9px 11px; font-size: 13.5px; line-height: 1.4; }
+  .chip b { color: #ffd23e; display: block; font-size: 13px; letter-spacing: .5px; }
+  .cols { display: grid; grid-template-columns: 1.15fr .85fr; gap: 16px; }
+  .missionRow { display: flex; justify-content: space-between; gap: 10px; padding: 7px 10px;
+    border-radius: 8px; background: rgba(255,255,255,.05); margin-bottom: 6px; font-size: 14px; }
+  .missionRow.done { border-left: 4px solid #7dffb0; }
+  .missionRow.next { border-left: 4px solid #ffd23e; background: rgba(255,210,62,.12); }
+  .missionRow.locked { opacity: .55; }
+  .missionRow .pay { color: #7dffb0; font-weight: 700; white-space: nowrap; }
+  .btn { pointer-events: auto; cursor: pointer; border: 0; border-radius: 10px; padding: 12px 22px;
+    font-size: 17px; font-weight: 800; color: #10202e; background: linear-gradient(180deg,#ffe066,#ffb62e); }
+  .btn:hover { filter: brightness(1.1); }
+  .btn.ghost { background: rgba(255,255,255,.14); color: #fff; border: 1px solid rgba(255,255,255,.3); }
+  .btnrow { display: flex; gap: 10px; margin-top: 16px; flex-wrap: wrap; }
+  .controls { font-size: 13.5px; line-height: 1.9; background: rgba(0,0,0,.28);
+    border-radius: 10px; padding: 10px 14px; }
+  .controls b { color: #ffd23e; background: rgba(255,255,255,.1); border-radius: 5px; padding: 1px 7px; }
+  .shopGrid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 12px; }
+  .shopItem { background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.16);
+    border-radius: 10px; padding: 12px; }
+  .shopItem h3 { margin: 0 0 4px; font-size: 16px; color: #ffd23e; }
+  .shopItem p { margin: 0 0 10px; font-size: 13px; color: #cfe8f5; min-height: 34px; }
+  .shopItem .price { font-weight: 800; color: #7dffb0; }
+  .statTiles { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; margin: 14px 0; }
+  .tile { background: rgba(255,255,255,.07); border-radius: 10px; padding: 12px 8px; text-align: center; }
+  .tile .v { font-size: 26px; font-weight: 800; color: #fff; }
+  .tile .k { font-size: 12px; color: #9fd8ff; letter-spacing: .5px; }
+  .grade { font-size: 84px; font-weight: 900; color: #ffd23e; line-height: 1;
+    text-shadow: 0 4px 0 #b3541e, 0 8px 24px rgba(0,0,0,.6); }
+  #briefing .panel, #results .panel { width: min(720px, 94vw); }
+  #status { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
 </style>
+<script type="importmap">{"imports": {"three": "./vendor/three.module.min.js"}}</script>
 </head>
 <body>
-<canvas id="game" aria-label="Block Dodger: move the paddle left and right to dodge falling blocks and catch coins"></canvas>
+<canvas id="c" aria-label="Palmera Bay: 3D open-world crime game"></canvas>
 <p id="status" role="status" aria-live="polite"></p>
+<div id="wantedFlash" class="hidden"></div>
+<div id="hud" class="hidden">
+  <div id="topbar">
+    <div id="stats">Cash <b id="cash">$0</b> &nbsp; Health <b id="health">100</b> &nbsp; Armor <b id="armor">0</b><br>
+      <span id="stars"></span></div>
+    <div id="clock"><span id="clockTime">08:00</span> · Palmera Bay<br><span id="saveState">No save yet</span></div>
+  </div>
+  <div id="objective"><span class="mname" id="objTitle">Free roam</span><br><span id="objText">Steal a car, explore the city, or start a story job.</span></div>
+  <div id="radio">RADIO <span class="st" id="radioName">PALMERA 88.2</span><br><span id="radioSong">—</span></div>
+  <canvas id="minimap" width="180" height="180"></canvas>
+  <div id="speedo"><span class="sp" id="speed">0</span> <span class="unit" id="speedUnit">MPH</span><br><span id="carName">On foot</span></div>
+  <div id="weapon"><b id="weaponName">Fists</b> · <span id="ammo">∞</span></div>
+  <div id="hint" class="hidden"></div>
+  <div id="toast"></div>
+  <div id="crosshair" class="hidden"></div>
+</div>
+
+<div id="title" class="overlay">
+  <div class="panel">
+    <h1>PALMERA <span>BAY</span></h1>
+    <p class="subtitle">3D open-world crime · 7 story jobs · helicopter police · radio · shops &amp; saves</p>
+    <div class="chips">
+      <div class="chip"><b>GOAL</b>Work for the Marlin crew: finish all 7 story jobs, get rich, stay alive.</div>
+      <div class="chip"><b>DRIVE</b>WASD to drive · Space handbrake · C camera · Shift run on foot.</div>
+      <div class="chip"><b>STEAL</b>Walk up to any car, press E to pull the driver out and take it.</div>
+      <div class="chip"><b>WANTED</b>Crime raises stars. At 4–5★ a police helicopter hunts you. Hide or visit the safehouse.</div>
+      <div class="chip"><b>MISSIONS</b>Gold markers start story jobs. Finish for cash, grade S–D, unlock the next.</div>
+      <div class="chip"><b>RADIO</b>Press R in a car to switch stations. F at shops, safehouse &amp; garage.</div>
+    </div>
+    <div class="cols">
+      <div>
+        <h3 style="margin:4px 0 8px">Story jobs — <span id="missionProgress">0 / 7 done</span></h3>
+        <div id="missionList"></div>
+        <div class="btnrow">
+          <button class="btn" id="btnContinue">CONTINUE</button>
+          <button class="btn ghost" id="btnNew">NEW GAME</button>
+          <button class="btn ghost" id="btnFree">FREE ROAM</button>
+        </div>
+        <p style="font-size:13px;color:#9fd8ff" id="bestLine">Best score: — · Cash $0</p>
+      </div>
+      <div class="controls">
+        <b>W A S D</b> move / drive &nbsp; <b>Shift</b> run<br>
+        <b>E</b> enter / exit / steal car &nbsp; <b>Mouse</b> aim · <b>Click</b> shoot<br>
+        <b>R</b> radio station &nbsp; <b>Space</b> handbrake<br>
+        <b>C</b> camera &nbsp; <b>M</b> minimap zoom &nbsp; <b>F</b> interact<br>
+        <b>Esc</b> pause &nbsp; <b>U</b> mute &nbsp; <b>1–4</b> weapons<br>
+        <hr style="border-color:rgba(255,255,255,.15)">
+        Side work: taxi fares (yellow cab markers), 12 hidden packages,
+        stunt jumps. Shops sell guns, health &amp; armor. The garage sells
+        engine, armor &amp; paint. The safehouse saves and clears your wanted level.
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="briefing" class="overlay hidden">
+  <div class="panel">
+    <h2 id="briefTitle" style="color:#ffd23e;margin:0 0 6px">Job</h2>
+    <p id="briefText" style="font-size:16px;line-height:1.55"></p>
+    <p id="briefMeta" style="color:#9fd8ff;font-size:14px"></p>
+    <div class="btnrow">
+      <button class="btn" id="btnStartJob">START JOB</button>
+      <button class="btn ghost" id="btnCancelJob">NOT YET</button>
+    </div>
+  </div>
+</div>
+
+<div id="results" class="overlay hidden">
+  <div class="panel" style="text-align:center">
+    <h2 id="resTitle" style="margin:0;color:#7dffb0">JOB COMPLETE</h2>
+    <div class="grade" id="resGrade">S</div>
+    <p id="resPayout" style="font-size:22px;font-weight:800;color:#ffd23e"></p>
+    <div class="statTiles">
+      <div class="tile"><div class="v" id="stTime">0:00</div><div class="k">TIME</div></div>
+      <div class="tile"><div class="v" id="stDamage">0</div><div class="k">DAMAGE TAKEN</div></div>
+      <div class="tile"><div class="v" id="stWanted">0★</div><div class="k">WANTED PEAK</div></div>
+      <div class="tile"><div class="v" id="stAcc">—</div><div class="k">ACCURACY</div></div>
+      <div class="tile"><div class="v" id="stColl">0/12</div><div class="k">PACKAGES</div></div>
+    </div>
+    <p id="resNote" style="color:#cfe8f5"></p>
+    <div class="btnrow" style="justify-content:center">
+      <button class="btn" id="btnNextJob">CONTINUE</button>
+    </div>
+  </div>
+</div>
+
+<div id="shop" class="overlay hidden">
+  <div class="panel">
+    <h2 id="shopTitle" style="color:#ffd23e;margin:0">Shop</h2>
+    <p id="shopCash" style="color:#7dffb0;font-weight:700"></p>
+    <div class="shopGrid" id="shopItems"></div>
+    <div class="btnrow"><button class="btn ghost" id="btnCloseShop">CLOSE (F)</button></div>
+  </div>
+</div>
+
+<div id="pause" class="overlay hidden">
+  <div class="panel" style="width:min(480px,94vw);text-align:center">
+    <h2 style="color:#ffd23e;margin:0 0 10px">PAUSED</h2>
+    <p style="color:#cfe8f5">Palmera Bay waits for no one — except right now.</p>
+    <div class="btnrow" style="justify-content:center">
+      <button class="btn" id="btnResume">RESUME</button>
+      <button class="btn ghost" id="btnQuitTitle">QUIT TO TITLE</button>
+    </div>
+  </div>
+</div>
+
 <script type="module" src="./src/main.js"></script>
 </body>
 </html>
